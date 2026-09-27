@@ -12,6 +12,7 @@ This repository is the **client only**. It talks to a separate Narrax API (NestJ
 - **Novel dashboard** — create, list and delete novels; each novel opens an editor with metadata (title, summary, status, tags) and a lore panel.
 - **Novel context (lore)** — per-novel `characters` (name, role, description), `worldBuilding`, `plotOutline` and `writingStyle`. This is the knowledge the AI writes from.
 - **Episode editor** — Tiptap rich-text editor with an autosave (2.5s debounce) for saved episodes and an explicit save for new ones; publish/draft toggle; delete with confirmation.
+- **Revision history** — review the latest five content snapshots and restore an earlier version from the editor.
 - **Focus mode** — full-screen editor with a word count, `Escape` to exit and a shortcut into the AI panel.
 - **.txt import** — upload a manuscript as a new episode, either as-is or queued for server-side AI enrichment (the episode comes back with `aiEnrichmentStatus: 'pending'`).
 - **Cast selector** — per-episode subset of characters handed to the AI instead of the whole cast; empty selection means "auto-detect from the episode text".
@@ -49,7 +50,7 @@ This repository is the **client only**. It talks to a separate Narrax API (NestJ
 | Styling | Tailwind CSS 4 via `@tailwindcss/vite`, plus a CSS custom-property design system in `src/index.css` (components use inline styles referencing those variables) |
 | HTTP | axios for REST, raw `fetch` + `ReadableStream` for SSE streaming |
 | Icons | lucide-react |
-| Lint/typecheck | ESLint 10 (flat config) + `tsc -b` |
+| Checks | ESLint 10 (flat config), `tsc -b`, Vitest, Playwright |
 
 ---
 
@@ -86,8 +87,13 @@ VITE_API_URL=http://localhost:3000
 | `npm run build` | `tsc -b && vite build` — typecheck, then production bundle into `dist/` |
 | `npm run lint` | `eslint .` |
 | `npm run preview` | Serve the built `dist/` locally |
+| `npm run test` | Run Vitest unit tests |
+| `npm run test:e2e` | Run Playwright in Chromium against a running API and database |
 
-`npm run build` and `npm run lint` are the verification gates; both currently pass.
+CI runs lint, unit tests, and build on every push and pull request. Browser tests are an opt-in CI
+job when `E2E_BASE_URL` is set. Locally, Playwright starts the UI dev server if necessary;
+`E2E_API_URL` changes the API target. The real AI generation test also requires
+`E2E_AI_ENABLED=1` and a reachable provider.
 
 ---
 
@@ -103,12 +109,11 @@ VITE_API_URL=http://localhost:3000
 | `/read/:novelId/:episodeId` | — | Full-screen reader rendered outside `MainLayout` |
 | `/profile` | Main | Protected — account and authored novels |
 | `/settings` | Main | Protected — model configuration (default tab) |
-| `/admin` | Main | Protected — placeholder, see *Not implemented yet* |
 | `/writer` | Main | Protected — writer dashboard |
 | `/writer/novel/:id` | Main | Protected — novel metadata + lore + episodes |
 | `/writer/novel/:novelId/episode/:episodeId` | Main | Protected — episode editor (`episodeId` may be `new`) |
 
-Authentication is enforced by `src/components/auth/ProtectedRoute.tsx`, which only checks for a stored token and otherwise redirects to `/discover`. There is no role check anywhere in the client.
+Authentication is enforced by `src/components/auth/ProtectedRoute.tsx`, which checks for a stored token and otherwise redirects to `/discover`. The API makes the final access decisions for drafts and mutations.
 
 ---
 
@@ -120,7 +125,8 @@ src/
     ai/         AiPanel, AiComposer, AiStreamOutput, AiDiffView
     auth/       ProtectedRoute
     editor/     TiptapEditor, EditorToolbar, EditorBubbleMenu, ContextDrawer,
-                CastSelector, QuickPromptBar, InlineSuggestionOverlay, FocusMode
+                CastSelector, QuickPromptBar, InlineSuggestionOverlay, FocusMode,
+                RevisionHistoryDrawer
     layout/     Navbar, WriterSidebar
     novel/      NovelCard, NovelContextPanel, EpisodeListItem, CreateEpisodeModal, TxtUploadModal
     ui/         Button, Input, Select, Modal, Badge, Toast, Tooltip, Spinner, ProgressBar
@@ -130,10 +136,10 @@ src/
     useConversationPersistence loads and writes per-episode conversation history
     useNovelContext            novel lore + pinned context + episode cast context
     useDebounce                debounce helper (autosave)
-  layouts/      MainLayout (in use); WriterLayout and ReaderLayout exist but are not wired to any route
+  layouts/      MainLayout for public and protected pages
   pages/        Home, Discover, NovelDetails, Reader, Login, Register, UserProfile,
                 Settings (+ settings/ModelSettings), WriterDashboard, NovelEditor,
-                EpisodeEditor, AdminDashboard
+                EpisodeEditor
   services/     api (axios instance + interceptors), novelService, episodeService,
                 aiService, conversationService, userModelService
   store/        authStore, novelStore, episodeStore, aiStore, uiStore, themeStore, modelStore
@@ -193,7 +199,7 @@ The inline AI actions call the same endpoint with action-specific prompts (defin
 | --- | --- | --- |
 | POST | `/auth/register`, `/auth/login` | Email + password auth, returns a token |
 | GET | `/auth/me` | Current user; also used on app start and after the OAuth callback |
-| PATCH | `/auth/me` | Update display name |
+| PATCH | `/auth/me` | Profile page currently calls this route; the API does not implement it yet |
 | GET | `/auth/google` | Google OAuth entry point (browser navigation, not axios) |
 | GET | `/novels` | Paginated list, filterable by `status`, `authorId`, `page`, `limit` |
 | POST | `/novels` | Create a novel |
@@ -203,6 +209,7 @@ The inline AI actions call the same endpoint with action-specific prompts (defin
 | GET/POST | `/novels/:novelId/episodes` | List episodes / create one |
 | POST | `/novels/:novelId/episodes/upload-content` | Multipart `.txt` import; returns `aiEnrichmentStatus: 'pending'` |
 | GET/PATCH/DELETE | `/episodes/:id` | Fetch / update / delete an episode |
+| GET/POST | `/episodes/:id/revisions`, `/episodes/:id/revisions/:revisionId/restore` | List snapshots / restore one |
 | GET/POST/DELETE | `/episodes/:episodeId/conversation` | AI conversation history |
 | POST | `/story-generations/stream` | Streaming story generation |
 | GET/POST | `/user-models` | List / create user model configs |
@@ -239,9 +246,8 @@ Defined in `src/types/`:
 
 ## Not implemented yet
 
-- **Admin** (`/admin`) is a placeholder, and the route only requires being signed in — there is no role check, so it is not a security boundary.
-- **No test suite.** There is no test runner configured; `npm run lint` plus `npm run build` are the only automated checks.
+- The profile page calls `PATCH /auth/me` to edit the display name, but the current API has no matching route, so this action will fail until the API adds it.
 - Comment/review, follow/bookmark and reader-progress features are advertised on the landing page but have no client implementation or API wiring.
 - The "set as default" flag is only settable from the saved-model list; the create-model form always sends `isDefault: false`.
-- The production bundle is a single ~900 kB chunk (Vite warns above 500 kB) — no route-level code splitting yet.
+- Non-home pages use lazy route loading, so Vite builds separate chunks for them.
 - `.txt` import queues server-side enrichment; the client does not poll for `aiEnrichmentStatus`, so progress is only visible after a refresh.
