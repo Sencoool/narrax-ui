@@ -40,12 +40,15 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
   const setTemperature = useAiStore((s) => s.setTemperature);
   const targetChars = useAiStore((s) => s.targetChars);
   const setTargetChars = useAiStore((s) => s.setTargetChars);
+  const selectedModelId = useAiStore((s) => s.selectedModelId);
+  const setSelectedModelId = useAiStore((s) => s.setSelectedModelId);
 
   const localPrompt = useAiStore((s) => s.draft);
   const setLocalPrompt = useAiStore((s) => s.setDraft);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [storyText, setStoryText] = useState('');
   const { activeModel, models, fetchModels } = useModelStore();
+  const selectedModel = models.find((model) => model.id === selectedModelId) ?? activeModel;
   const { addToast } = useUiStore();
 
   useEffect(() => {
@@ -55,7 +58,7 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
   }, [models.length, fetchModels]);
 
   const hasConfiguredModel = Boolean(activeModel);
-  const contextLimit = activeModel?.contextTokens ?? 8192;
+  const contextLimit = selectedModel?.contextTokens ?? 8192;
   const contextEstimate = 1500 + estimateTokens([
     storyText,
     localPrompt,
@@ -296,6 +299,12 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
           border: '1px solid var(--color-border)',
           display: 'flex', flexDirection: 'column', gap: '0.375rem',
         }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+            Model for this task
+            <select aria-label="Generation model" value={selectedModel?.id ?? ''} onChange={(event) => setSelectedModelId(event.target.value || null)} disabled={isRunning} style={{ maxWidth: '65%', padding: '0.35rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>
+              {models.map((model) => <option key={model.id} value={model.id}>{model.label} · {model.modelName}</option>)}
+            </select>
+          </label>
           <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
             Draft length
             <select aria-label="Draft length" value={targetChars} onChange={(event) => setTargetChars(Number(event.target.value))} disabled={isRunning} style={{ padding: '0.35rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>

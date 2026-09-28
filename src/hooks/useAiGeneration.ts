@@ -35,6 +35,7 @@ export function useAiGeneration(
   const {
     temperature,
     targetChars,
+    selectedModelId,
     messages,
     addUserMessage,
     startAssistantMessage,
@@ -45,7 +46,8 @@ export function useAiGeneration(
   } = useAiStore();
 
   const { addToast } = useUiStore();
-  const activeModel = useModelStore((state) => state.activeModel);
+  const { activeModel, models } = useModelStore();
+  const selectedModel = models.find((model) => model.id === selectedModelId) ?? activeModel;
 
   const generate = useCallback(async (promptText: string) => {
     if (!novelId) {
@@ -92,8 +94,8 @@ export function useAiGeneration(
       conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined,
       temperature,
       targetChars,
-      modelId: activeModel?.id,
-      maxContextTokens: activeModel?.contextTokens,
+      modelId: selectedModel?.id,
+      maxContextTokens: selectedModel?.contextTokens,
     };
 
     try {
@@ -135,7 +137,7 @@ export function useAiGeneration(
     episodeId,
     temperature,
     targetChars,
-    activeModel,
+    selectedModel,
     messages,
     getEditorContent,
     addUserMessage,

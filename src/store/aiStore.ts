@@ -15,6 +15,8 @@ interface AiStore {
   setTemperature: (temp: number) => void;
   targetChars: number;
   setTargetChars: (chars: number) => void;
+  selectedModelId: string | null;
+  setSelectedModelId: (id: string | null) => void;
 
   // Aggregate status (reflects the last assistant message)
   status: 'idle' | 'generating' | 'streaming' | 'done' | 'error';
@@ -44,6 +46,7 @@ const defaultState = {
   isPanelOpen: false,
   temperature: 0.6,
   targetChars: 2500,
+  selectedModelId: null as string | null,
   status: 'idle' as const,
   messages: [] as ChatMessage[],
   streamingMessageId: null as string | null,
@@ -61,6 +64,7 @@ export const useAiStore = create<AiStore>((set, get) => ({
   // ── Settings ───────────────────────────────────────────────────────────────
   setTemperature: (temperature) => set({ temperature }),
   setTargetChars: (targetChars) => set({ targetChars }),
+  setSelectedModelId: (selectedModelId) => set({ selectedModelId }),
 
   // ── Conversation actions ───────────────────────────────────────────────────
 

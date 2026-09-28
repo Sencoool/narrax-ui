@@ -15,6 +15,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { useModelStore } from '../../store/modelStore';
+import { useAiStore } from '../../store/aiStore';
 import { userModelService } from '../../services/userModelService';
 import { useUiStore } from '../../store/uiStore';
 import { Button } from '../../components/ui/Button';
@@ -80,6 +81,7 @@ const PROVIDERS: ProviderOption[] = [
 ];
 
 export function ModelSettings() {
+  const setSelectedModelId = useAiStore((state) => state.setSelectedModelId);
   const {
     models,
     activeModel,
@@ -100,6 +102,7 @@ export function ModelSettings() {
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
+  const [contextTokens, setContextTokens] = useState(8192);
   // No "set as default" control exists yet — default is switched from the model
   // list. Kept as a value (not state) so the create payload shape is unchanged.
   const isDefault = false;
@@ -111,10 +114,65 @@ export function ModelSettings() {
   const [testingModelId, setTestingModelId] = useState<string | null>(null);
   const [isProbingOllama, setIsProbingOllama] = useState(false);
   const [detectedOllamaModels, setDetectedOllamaModels] = useState<string[]>([]);
+  const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; sizeBytes: number }>>([]);
+  const [ollamaReachable, setOllamaReachable] = useState<boolean | null>(null);
+  const [pullName, setPullName] = useState('');
+  const [pullStatus, setPullStatus] = useState<string | null>(null);
+  const [pullProgress, setPullProgress] = useState<number | null>(null);
+  const [isPulling, setIsPulling] = useState(false);
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434');
 
   useEffect(() => {
     void fetchModels();
   }, [fetchModels]);
+
+  const refreshOllama = async () => {
+    const status = await userModelService.getOllamaStatus();
+    setOllamaReachable(status.reachable);
+    setOllamaBaseUrl(status.baseUrl);
+    setOllamaModels(status.reachable ? await userModelService.getOllamaModels() : []);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshOllama().catch(() => setOllamaReachable(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handlePullOllama = async () => {
+    if (!pullName.trim() || isPulling) return;
+    setIsPulling(true);
+    setPullStatus('Starting download…');
+    setPullProgress(null);
+    try {
+      await userModelService.pullOllamaModel(pullName.trim(), (event) => {
+        setPullStatus(event.status ?? 'Downloading…');
+        setPullProgress(event.total && event.completed !== undefined ? Math.min(100, Math.round(event.completed / event.total * 100)) : null);
+      });
+      setPullName('');
+      await refreshOllama();
+      addToast({ type: 'success', title: 'Model ready', message: 'Ollama model download completed.' });
+    } catch (error) {
+      addToast({ type: 'error', title: 'Model pull failed', message: getErrorMessage(error, 'Could not download model') });
+    } finally {
+      setIsPulling(false);
+      setPullStatus(null);
+      setPullProgress(null);
+    }
+  };
+
+  const handleUseOllamaModel = async (name: string) => {
+    try {
+      const existing = models.find((model) => model.provider === 'ollama' && model.modelName === name);
+      if (existing) await setDefaultModel(existing.id);
+      else await createModel({ label: `Ollama · ${name}`, provider: 'ollama', modelName: name, baseUrl: ollamaBaseUrl, isDefault: true });
+      setSelectedModelId(null);
+      addToast({ type: 'success', title: 'Model selected', message: `${name} is ready for generation.` });
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not select model', message: getErrorMessage(error, 'Please try again') });
+    }
+  };
 
   const currentProviderConfig = PROVIDERS.find((p) => p.id === selectedProvider) ?? PROVIDERS[0];
 
@@ -242,6 +300,7 @@ export function ModelSettings() {
         apiKey: apiKey.trim() || undefined,
         baseUrl: baseUrl.trim() || undefined,
         isDefault,
+        contextTokens,
       });
 
       addToast({
@@ -532,6 +591,13 @@ export function ModelSettings() {
             )}
           </div>
 
+          <label style={{ display: 'grid', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-primary)' }}>
+            Model context window
+            <select value={contextTokens} onChange={(event) => setContextTokens(Number(event.target.value))} style={{ padding: '0.625rem 0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>
+              {[4096, 8192, 16384, 32768, 65536].map((size) => <option key={size} value={size}>{size.toLocaleString()} tokens</option>)}
+            </select>
+          </label>
+
           {/* Cloud Provider: API Key */}
           {currentProviderConfig.requiresKey && (
             <div>
@@ -781,6 +847,30 @@ export function ModelSettings() {
           </div>
         )}
       </div>
+
+      <section style={{ padding: '1.25rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)', display: 'grid', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Local Ollama models</h2>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>{ollamaReachable === null ? 'Checking Ollama…' : ollamaReachable ? `${ollamaModels.length} model(s) installed` : 'Ollama is not reachable. Start Ollama to list or download models.'}</p>
+          </div>
+          <Button variant="ghost" size="sm" leftIcon={<RefreshCw size={13} />} onClick={() => void refreshOllama().catch(() => setOllamaReachable(false))}>Refresh</Button>
+        </div>
+        {ollamaReachable && <>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Input aria-label="Ollama model to pull" placeholder="e.g. qwen2.5:7b" value={pullName} onChange={(event) => setPullName(event.target.value)} />
+            <Button variant="primary" size="sm" loading={isPulling} disabled={!pullName.trim()} onClick={() => void handlePullOllama()}>Pull model</Button>
+          </div>
+          {pullStatus && <div aria-live="polite" style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>{pullStatus}{pullProgress !== null ? ` · ${pullProgress}%` : ''}{pullProgress !== null && <progress value={pullProgress} max={100} style={{ display: 'block', width: '100%' }} />}</div>}
+          {ollamaModels.length > 0 && <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {ollamaModels.map((model) => <div key={model.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.6rem' }}>
+              <span style={{ fontSize: '0.875rem', color: 'var(--color-text-primary)' }}>{model.name} · {(model.sizeBytes / 1024 ** 3).toFixed(1)} GB</span>
+              <Button variant="secondary" size="sm" onClick={() => void handleUseOllamaModel(model.name)}>Use this model</Button>
+            </div>)}
+          </div>}
+          {ollamaModels.length === 0 && !isPulling && <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>Ollama is running but no models are installed yet.</p>}
+        </>}
+      </section>
     </div>
   );
 }
