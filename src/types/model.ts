@@ -15,6 +15,7 @@ export interface UserModelConfig {
   maskedApiKey: string;
   baseUrl: string | null;
   isDefault: boolean;
+  contextTokens: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +27,7 @@ export interface CreateUserModelDto {
   apiKey?: string;
   baseUrl?: string;
   isDefault?: boolean;
+  contextTokens?: number;
 }
 
 export interface UpdateUserModelDto {
@@ -35,6 +37,7 @@ export interface UpdateUserModelDto {
   apiKey?: string;
   baseUrl?: string;
   isDefault?: boolean;
+  contextTokens?: number;
 }
 
 export interface TestModelDto {

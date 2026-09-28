@@ -49,6 +49,9 @@ export interface StreamGenerationRequest {
   conversationHistory?: ConversationTurn[];
   /** Temperature controls creativity */
   temperature?: number;
+  targetChars?: number;
+  maxContextTokens?: number;
+  modelId?: string;
 }
 
 /** SSE event types from the API */

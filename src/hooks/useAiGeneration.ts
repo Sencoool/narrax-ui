@@ -3,6 +3,7 @@ import { streamStoryGeneration } from '../services/aiService';
 import { useAiStore, buildConversationHistory } from '../store/aiStore';
 import { useUiStore } from '../store/uiStore';
 import type { StreamGenerationRequest } from '../types/ai';
+import { useModelStore } from '../store/modelStore';
 
 /**
  * Hook that orchestrates the AI generation flow.
@@ -33,6 +34,7 @@ export function useAiGeneration(
 
   const {
     temperature,
+    targetChars,
     messages,
     addUserMessage,
     startAssistantMessage,
@@ -43,6 +45,7 @@ export function useAiGeneration(
   } = useAiStore();
 
   const { addToast } = useUiStore();
+  const activeModel = useModelStore((state) => state.activeModel);
 
   const generate = useCallback(async (promptText: string) => {
     if (!novelId) {
@@ -88,6 +91,9 @@ export function useAiGeneration(
       currentContent: currentContent || undefined,
       conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined,
       temperature,
+      targetChars,
+      modelId: activeModel?.id,
+      maxContextTokens: activeModel?.contextTokens,
     };
 
     try {
@@ -128,6 +134,8 @@ export function useAiGeneration(
     novelId,
     episodeId,
     temperature,
+    targetChars,
+    activeModel,
     messages,
     getEditorContent,
     addUserMessage,

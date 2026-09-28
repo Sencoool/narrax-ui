@@ -7,6 +7,7 @@ import { useAiStore } from '../../store/aiStore';
 import { useAiGeneration } from '../../hooks/useAiGeneration';
 import type { Editor } from '@tiptap/react';
 import { AiSuggestionChips } from './AiSuggestionChips';
+import { estimateTokens } from '../../utils/tokens';
 
 interface AiComposerProps {
   novelId: string;
@@ -37,10 +38,13 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
   const messages = useAiStore((s) => s.messages);
   const temperature = useAiStore((s) => s.temperature);
   const setTemperature = useAiStore((s) => s.setTemperature);
+  const targetChars = useAiStore((s) => s.targetChars);
+  const setTargetChars = useAiStore((s) => s.setTargetChars);
 
   const localPrompt = useAiStore((s) => s.draft);
   const setLocalPrompt = useAiStore((s) => s.setDraft);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [storyText, setStoryText] = useState('');
   const { activeModel, models, fetchModels } = useModelStore();
   const { addToast } = useUiStore();
 
@@ -51,6 +55,14 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
   }, [models.length, fetchModels]);
 
   const hasConfiguredModel = Boolean(activeModel);
+  const contextLimit = activeModel?.contextTokens ?? 8192;
+  const contextEstimate = 1500 + estimateTokens([
+    storyText,
+    localPrompt,
+    ...messages.map((message) => message.content),
+    buildPinnedContext?.() ?? '',
+  ].join('\n'));
+  const contextPercent = Math.min(100, Math.round((contextEstimate / contextLimit) * 100));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const getEditorContent = () => {
@@ -58,6 +70,14 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
     if (editor.isDestroyed) throw new Error('Editor is syncing, please wait a moment and try again.');
     return editor.getHTML();
   };
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const update = () => setStoryText(editor.getText());
+    update();
+    editor.on('update', update);
+    return () => { editor.off('update', update); };
+  }, [editor]);
 
   const { generate, cancel } = useAiGeneration(novelId, episodeId, getEditorContent, buildPinnedContext);
 
@@ -107,6 +127,15 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
         display: 'flex', flexDirection: 'column', gap: '0.625rem',
       }}
     >
+      <div aria-label="Estimated context use" title="Approximate only; the server trims older context before generation." style={{ display: 'grid', gap: '0.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6875rem', color: contextPercent >= 80 ? '#d97706' : 'var(--color-text-muted)' }}>
+          <span>Estimated context · older context may be trimmed</span>
+          <span>{contextEstimate.toLocaleString()} / {contextLimit.toLocaleString()} tokens</span>
+        </div>
+        <div style={{ height: 4, background: 'var(--color-bg-subtle)', borderRadius: 4 }}>
+          <div style={{ width: `${contextPercent}%`, height: '100%', borderRadius: 4, background: contextPercent >= 80 ? '#d97706' : '#6366f1' }} />
+        </div>
+      </div>
       {/* Unconfigured Model Alert */}
       {!hasConfiguredModel && (
         <div
@@ -267,6 +296,16 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
           border: '1px solid var(--color-border)',
           display: 'flex', flexDirection: 'column', gap: '0.375rem',
         }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+            Draft length
+            <select aria-label="Draft length" value={targetChars} onChange={(event) => setTargetChars(Number(event.target.value))} disabled={isRunning} style={{ padding: '0.35rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>
+              <option value={800}>Short (~800)</option>
+              <option value={2500}>Medium (~2,500)</option>
+              <option value={6000}>Long (~6,000)</option>
+              <option value={15000}>Full episode (~15,000)</option>
+            </select>
+          </label>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>Requests over 2,500 characters are written in segments.</span>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
               Creativity
