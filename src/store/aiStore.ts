@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { ChatMessage, ConversationTurn } from '../types/ai';
 
 interface AiStore {
+  draft: string;
+  setDraft: (draft: string) => void;
   // Panel visibility
   isPanelOpen: boolean;
   togglePanel: () => void;
@@ -27,6 +29,7 @@ interface AiStore {
   appendToStreaming: (chunk: string) => void;
   setMessageStatus: (id: string, status: ChatMessage['status']) => void;
   setMessageError: (id: string) => void;
+  setGenerationId: (messageId: string, generationId: string) => void;
   clearConversation: () => void;
 }
 
@@ -35,6 +38,7 @@ function generateId(): string {
 }
 
 const defaultState = {
+  draft: '',
   isPanelOpen: false,
   temperature: 0.6,
   status: 'idle' as const,
@@ -44,6 +48,7 @@ const defaultState = {
 
 export const useAiStore = create<AiStore>((set, get) => ({
   ...defaultState,
+  setDraft: (draft) => set({ draft }),
 
   // ── Panel ──────────────────────────────────────────────────────────────────
   togglePanel: () => set((s) => ({ isPanelOpen: !s.isPanelOpen })),
@@ -119,6 +124,10 @@ export const useAiStore = create<AiStore>((set, get) => ({
       streamingMessageId: null,
     }));
   },
+
+  setGenerationId: (messageId, generationId) => set((state) => ({
+    messages: state.messages.map((message) => message.id === messageId ? { ...message, generationId } : message),
+  })),
 
   clearConversation: () =>
     set({ messages: [], status: 'idle', streamingMessageId: null }),

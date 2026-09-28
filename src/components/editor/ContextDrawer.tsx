@@ -3,6 +3,7 @@ import { X, Pin, PinOff, User, Globe, FileText, Pen, ChevronDown, ChevronRight, 
 import { useState } from 'react';
 import type { UseNovelContextResult, PinnedItem } from '../../hooks/useNovelContext';
 import type { Character } from '../../types/novel';
+import { CharacterAvatar } from '../characters/CharacterAvatar';
 
 interface ContextDrawerProps {
   isOpen: boolean;
@@ -71,7 +72,7 @@ function PinButton({ pinned, onClick }: { pinned: boolean; onClick: () => void }
 }
 
 export function ContextDrawer({ isOpen, onClose, novelContext }: ContextDrawerProps) {
-  const { context, characters, isLoading, isPinned, togglePin, pinnedItems } = novelContext;
+  const { context, characters, board, isLoading, isPinned, togglePin, pinnedItems } = novelContext;
   const drawerRef = useRef<HTMLDivElement>(null);
 
   const [charsOpen, setCharsOpen] = useState(true);
@@ -182,6 +183,10 @@ export function ContextDrawer({ isOpen, onClose, novelContext }: ContextDrawerPr
                     <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', padding: '0.5rem 0' }}>ยังไม่มีตัวละคร เพิ่มได้ที่หน้า Novel Settings</p>
                   ) : characters.map((char, i) => {
                     const pinned = isPinned('character', char.name);
+                    const record = board?.characters.find((item) => item.name === char.name);
+                    const factionNames = record?.factionIds
+                      .map((id) => board?.factions.find((faction) => faction.id === id)?.name)
+                      .filter((name): name is string => !!name) ?? [];
                     return (
                       <div key={i} style={{
                         display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
@@ -191,14 +196,7 @@ export function ContextDrawer({ isOpen, onClose, novelContext }: ContextDrawerPr
                         transition: 'all 0.15s',
                       }}>
                         {/* Avatar */}
-                        <div style={{
-                          width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
-                          background: `linear-gradient(135deg, ${ROLE_COLORS[char.role] ?? 'var(--color-text-muted)'}, var(--color-blue-400))`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: '#fff', fontSize: '0.75rem', fontWeight: 700,
-                        }}>
-                          {char.name.charAt(0).toUpperCase()}
-                        </div>
+                        <CharacterAvatar name={char.name} imageUrl={record?.imageUrl} size={28} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                             <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{char.name}</span>
@@ -209,6 +207,11 @@ export function ContextDrawer({ isOpen, onClose, novelContext }: ContextDrawerPr
                           {char.description && (
                             <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, marginTop: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
                               {char.description}
+                            </p>
+                          )}
+                          {factionNames.length > 0 && (
+                            <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                              {factionNames.join(' · ')}
                             </p>
                           )}
                         </div>

@@ -1,4 +1,28 @@
-import type { StreamGenerationRequest, SseEvent } from '../types/ai';
+import type { StreamGenerationRequest, SseEvent, GenerationDetail } from '../types/ai';
+import api from './api';
+
+export interface StorylineSuggestion {
+  title: string;
+  prompt: string;
+}
+
+export async function getStorylineSuggestions(novelId: string, episodeId?: string): Promise<StorylineSuggestion[]> {
+  const { data } = await api.post<StorylineSuggestion[]>('/story-generations/suggestions', {
+    novelId,
+    ...(episodeId ? { episodeId } : {}),
+  });
+  return data;
+}
+
+export async function getGeneration(id: string): Promise<GenerationDetail> {
+  const { data } = await api.get<GenerationDetail>(`/story-generations/${id}`);
+  return data;
+}
+
+export async function listEpisodeGenerations(episodeId: string): Promise<GenerationDetail[]> {
+  const { data } = await api.get<GenerationDetail[]>('/story-generations', { params: { episodeId } });
+  return data;
+}
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 

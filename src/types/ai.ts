@@ -10,6 +10,25 @@ export interface ChatMessage {
   content: string;
   status: ChatMessageStatus;
   timestamp: Date;
+  generationId?: string;
+}
+
+export interface GenerationDetail {
+  id: string;
+  createdAt: string;
+  systemPrompt: string | null;
+  prompt: string;
+  provider: string;
+  model: string | null;
+  temperature: number | null;
+  maxTokens: number | null;
+  durationMs: number | null;
+  status: string;
+  contextSnapshot: {
+    targetChars?: number;
+    chunks?: { episodeTitle: string | null; distance: number; preview: string }[];
+    history?: { turnsSent: number; turns: { role: string; preview: string }[] };
+  } | null;
 }
 
 export interface ConversationTurn {

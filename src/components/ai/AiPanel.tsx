@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   Sparkles, X, Check, RotateCcw, AlertCircle, Trash2, Copy,
 } from 'lucide-react';
@@ -6,6 +6,7 @@ import { useAiStore } from '../../store/aiStore';
 import { useModelStore } from '../../store/modelStore';
 import { useConversationPersistence } from '../../hooks/useConversationPersistence';
 import { AiComposer } from './AiComposer';
+import { PromptInspector } from './PromptInspector';
 import type { Editor } from '@tiptap/react';
 import type { ChatMessage } from '../../types/ai';
 
@@ -28,9 +29,11 @@ function formatTextToHtml(text: string): string {
 function MessageBubble({
   msg,
   editor,
+  onInspect,
 }: {
   msg: ChatMessage;
   editor: Editor | null;
+  onInspect?: (generationId: string) => void;
 }) {
   const setMessageStatus = useAiStore((s) => s.setMessageStatus);
   const isStreaming = msg.status === 'streaming';
@@ -215,6 +218,7 @@ function MessageBubble({
           >
             <Copy size={13} />
           </button>
+          {msg.generationId && onInspect && <button type="button" onClick={() => onInspect(msg.generationId!)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}>Inspect</button>}
         </div>
       )}
     </div>
@@ -290,6 +294,8 @@ function EmptyState() {
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 export function AiPanel({ novelId, episodeId, editor, buildPinnedContext }: AiPanelProps) {
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorId, setInspectorId] = useState<string | null>(null);
   const isPanelOpen = useAiStore((s) => s.isPanelOpen);
   const closePanel = useAiStore((s) => s.closePanel);
   const status = useAiStore((s) => s.status);
@@ -359,6 +365,7 @@ export function AiPanel({ novelId, episodeId, editor, buildPinnedContext }: AiPa
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          {episodeId && <button type="button" onClick={() => { setInspectorId(null); setInspectorOpen(true); }} title="Generation history" style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}>History</button>}
           {/* Clear conversation */}
           {hasMessages && (
             <button
@@ -408,7 +415,7 @@ export function AiPanel({ novelId, episodeId, editor, buildPinnedContext }: AiPa
         {!hasMessages && <EmptyState />}
 
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} msg={msg} editor={editor} />
+          <MessageBubble key={msg.id} msg={msg} editor={editor} onInspect={(id) => { setInspectorId(id); setInspectorOpen(true); }} />
         ))}
 
         {/* Thinking animation — shows before first chunk arrives */}
@@ -426,6 +433,8 @@ export function AiPanel({ novelId, episodeId, editor, buildPinnedContext }: AiPa
             editor={editor}
             buildPinnedContext={buildPinnedContext}
           />
+
+      {inspectorOpen && <PromptInspector key={`${inspectorId ?? 'history'}:${episodeId ?? ''}`} isOpen onClose={() => setInspectorOpen(false)} generationId={inspectorId} episodeId={episodeId} />}
 
       <style>{`
         @keyframes ai-cursor-blink {

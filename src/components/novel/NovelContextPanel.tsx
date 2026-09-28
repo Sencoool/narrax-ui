@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -28,6 +29,7 @@ interface NovelContextPanelProps {
   onSave: () => void;
   isSaving?: boolean;
   defaultOpen?: boolean;
+  manageCharactersUrl?: string;
 }
 
 export function NovelContextPanel({
@@ -42,6 +44,7 @@ export function NovelContextPanel({
   onSave,
   isSaving = false,
   defaultOpen = false,
+  manageCharactersUrl,
 }: NovelContextPanelProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [descModal, setDescModal] = useState<{ index: number; value: string } | null>(null);
@@ -145,6 +148,15 @@ export function NovelContextPanel({
 
             {/* Characters */}
             <div>
+              {manageCharactersUrl ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Characters and factions are managed on the board.</span>
+                  <Link to={manageCharactersUrl} style={{ color: 'var(--color-blue-600)', fontWeight: 600 }}>
+                    Open Character Board
+                  </Link>
+                </div>
+              ) : (
+                <>
               <div
                 style={{
                   display: 'flex',
@@ -248,6 +260,8 @@ export function NovelContextPanel({
                   </button>
                 </div>
               ))}
+                </>
+              )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

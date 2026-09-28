@@ -244,6 +244,19 @@ Defined in `src/types/`:
 
 ---
 
+## Testing the AI path locally
+
+Start PostgreSQL with its port exposed to the host, then apply API migrations. With `DATABASE_URL`
+set, run `npm run seed:local` in `narrax-api` with a `SEED_LOCAL_PASSWORD` of at least eight characters.
+The seed creates a login-ready `local@narrax.test` writer, a sample novel and episode, and an Ollama
+model configuration. It is safe to run again; it does not change an existing account's password.
+
+Run `npm run check:local` in `narrax-api` to check the API, Ollama, and embedding model. Build the API
+with `npm run build` and start it with `npm run start:prod`, then set `E2E_AI_ENABLED=1` and run `npm run test:e2e` in `narrax-ui`
+(`$env:E2E_AI_ENABLED='1'` in PowerShell). Without a local
+model, AI-dependent browser tests are skipped. The editor and revision tests still need the API and
+database running.
+
 ## Not implemented yet
 
 - The profile page calls `PATCH /auth/me` to edit the display name, but the current API has no matching route, so this action will fail until the API adds it.

@@ -22,6 +22,7 @@ const NovelEditor = lazy(() => import('./pages/NovelEditor'));
 const EpisodeEditor = lazy(() => import('./pages/EpisodeEditor'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Settings = lazy(() => import('./pages/Settings'));
+const CharacterBoardPage = lazy(() => import('./pages/CharacterBoardPage'));
 
 /** Placeholder shown while a route chunk is being fetched. */
 function RouteFallback() {
@@ -100,6 +101,7 @@ function App() {
               {/* Writer workspace */}
               <Route path="writer" element={<WriterDashboard />} />
               <Route path="writer/novel/:id" element={<NovelEditor />} />
+              <Route path="writer/novel/:id/board" element={<CharacterBoardPage />} />
               <Route path="writer/novel/:novelId/episode/:episodeId" element={<EpisodeEditor />} />
             </Route>
           </Route>

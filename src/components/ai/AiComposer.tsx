@@ -6,6 +6,7 @@ import { useUiStore } from '../../store/uiStore';
 import { useAiStore } from '../../store/aiStore';
 import { useAiGeneration } from '../../hooks/useAiGeneration';
 import type { Editor } from '@tiptap/react';
+import { AiSuggestionChips } from './AiSuggestionChips';
 
 interface AiComposerProps {
   novelId: string;
@@ -37,7 +38,8 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
   const temperature = useAiStore((s) => s.temperature);
   const setTemperature = useAiStore((s) => s.setTemperature);
 
-  const [localPrompt, setLocalPrompt] = useState('');
+  const localPrompt = useAiStore((s) => s.draft);
+  const setLocalPrompt = useAiStore((s) => s.setDraft);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { activeModel, models, fetchModels } = useModelStore();
   const { addToast } = useUiStore();
@@ -143,6 +145,9 @@ export function AiComposer({ novelId, episodeId, editor, buildPinnedContext }: A
       )}
 
       {/* Quick-prompt chips — shown when not running */}
+      {!isRunning && (
+        <AiSuggestionChips key={`${novelId}:${episodeId ?? ''}`} novelId={novelId} episodeId={episodeId} onSelect={() => textareaRef.current?.focus()} />
+      )}
       {hasConfiguredModel &&
       !isRunning && (
         <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { novelService } from '../services/novelService';
+import { characterService } from '../services/characterService';
 import type { NovelContext, Character } from '../types/novel';
+import type { CharacterBoard } from '../types/character';
 
 export interface PinnedItem {
   type: 'character' | 'world' | 'plot' | 'style';
@@ -11,16 +13,18 @@ export interface PinnedItem {
 export interface UseNovelContextResult {
   context: NovelContext | null;
   characters: Character[];
+  board: CharacterBoard | null;
   isLoading: boolean;
   pinnedItems: PinnedItem[];
   togglePin: (item: PinnedItem) => void;
   isPinned: (type: PinnedItem['type'], label: string) => boolean;
-  buildPinnedContext: () => string;
-  buildEpisodeCastContext: (cast: string[], editorText?: string) => string;
+  buildPinnedContext: (episodeOrder?: number) => string;
+  buildEpisodeCastContext: (cast: string[], editorText?: string, episodeOrder?: number) => string;
 }
 
 export function useNovelContext(novelId: string): UseNovelContextResult {
   const [context, setContext] = useState<NovelContext | null>(null);
+  const [board, setBoard] = useState<CharacterBoard | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(novelId));
   const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
 
@@ -32,10 +36,15 @@ export function useNovelContext(novelId: string): UseNovelContextResult {
 
     let cancelled = false;
 
-    novelService
-      .getContext(novelId)
-      .then((ctx) => { if (!cancelled) setContext(ctx); })
-      .catch(() => { if (!cancelled) setContext(null); })
+    Promise.allSettled([
+      novelService.getContext(novelId),
+      characterService.getBoard(novelId),
+    ])
+      .then(([contextResult, boardResult]) => {
+        if (cancelled) return;
+        setContext(contextResult.status === 'fulfilled' ? contextResult.value : null);
+        setBoard(boardResult.status === 'fulfilled' ? boardResult.value : null);
+      })
       .finally(() => { if (!cancelled) setIsLoading(false); });
 
     return () => { cancelled = true; };
@@ -45,6 +54,14 @@ export function useNovelContext(novelId: string): UseNovelContextResult {
   // array identity is stable — buildEpisodeCastContext is keyed on it, and a new
   // array every render would rebuild the AI context on every keystroke.
   const characters = useMemo<Character[]>(() => {
+    if (board?.characters.length) {
+      return board.characters.map((character) => ({
+        name: character.name,
+        description: character.description ?? undefined,
+        imageUrl: character.imageUrl,
+        role: (['protagonist', 'antagonist', 'supporting'] as const).find((role) => role === character.role) ?? 'other',
+      }));
+    }
     if (!context?.characters) return [];
     if (typeof context.characters === 'string') {
       try {
@@ -54,7 +71,7 @@ export function useNovelContext(novelId: string): UseNovelContextResult {
       }
     }
     return context.characters;
-  }, [context]);
+  }, [board, context]);
 
   const togglePin = useCallback((item: PinnedItem) => {
     setPinnedItems((prev) => {
@@ -70,14 +87,18 @@ export function useNovelContext(novelId: string): UseNovelContextResult {
     [pinnedItems],
   );
 
-  const buildPinnedContext = useCallback((): string => {
+  const buildPinnedContext = useCallback((episodeOrder = 0): string => {
     if (pinnedItems.length === 0) return '';
     const lines = ['[pinned context]'];
     for (const item of pinnedItems) {
+      if (item.type === 'character' && board?.characters.length) {
+        const record = board.characters.find((character) => character.name === item.label);
+        if (!record || (record.introducedAtOrder !== null && record.introducedAtOrder > episodeOrder)) continue;
+      }
       lines.push(item.label + ': ' + item.content);
     }
-    return lines.join('\n');
-  }, [pinnedItems]);
+    return lines.length > 1 ? lines.join('\n') : '';
+  }, [board, pinnedItems]);
 
   /**
    * Build a context string containing only the characters in `cast`.
@@ -87,7 +108,7 @@ export function useNovelContext(novelId: string): UseNovelContextResult {
    *   2. If editorText is empty too, include ALL characters (legacy behaviour).
    */
   const buildEpisodeCastContext = useCallback(
-    (cast: string[], editorText?: string): string => {
+    (cast: string[], editorText?: string, episodeOrder = 0): string => {
       if (characters.length === 0) return '';
 
       let selected: Character[];
@@ -105,6 +126,13 @@ export function useNovelContext(novelId: string): UseNovelContextResult {
         selected = characters;
       }
 
+      if (board?.characters.length) {
+        selected = selected.filter((character) => {
+          const record = board.characters.find((row) => row.name === character.name);
+          return record && (record.introducedAtOrder === null || record.introducedAtOrder <= episodeOrder);
+        });
+      }
+
       if (selected.length === 0) return '';
 
       const lines = ['[Episode Characters]'];
@@ -114,12 +142,13 @@ export function useNovelContext(novelId: string): UseNovelContextResult {
       }
       return lines.join('\n');
     },
-    [characters],
+    [board, characters],
   );
 
   return {
     context,
     characters,
+    board,
     isLoading,
     pinnedItems,
     togglePin,

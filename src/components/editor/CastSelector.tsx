@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Users, Search, X, Sparkles } from 'lucide-react';
 import type { Character } from '../../types/novel';
+import { CharacterAvatar } from '../characters/CharacterAvatar';
 
 interface CastSelectorProps {
   characters: Character[];
@@ -225,7 +226,7 @@ export function CastSelector({ characters, cast, onCastChange }: CastSelectorPro
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-surface)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
-                    <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} />
+                    <CharacterAvatar name={c.name} imageUrl={c.imageUrl} size={20} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.name}
                       {c.role && <span style={{ color: 'var(--color-text-muted)', marginLeft: 4, fontSize: '0.75rem' }}>· {c.role}</span>}

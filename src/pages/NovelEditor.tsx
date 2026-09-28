@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, Trash2 } from 'lucide-react';
+import { Plus, ArrowLeft, Trash2, Users } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Spinner } from '../components/ui/Spinner';
@@ -14,6 +14,7 @@ import { useNovelStore } from '../store/novelStore';
 import { useEpisodeStore } from '../store/episodeStore';
 import { useUiStore } from '../store/uiStore';
 import { novelService } from '../services/novelService';
+import { characterService } from '../services/characterService';
 import type { Character } from '../types/novel';
 
 /** Novel context characters may arrive as a JSON string or as an array. */
@@ -49,6 +50,7 @@ export default function NovelEditor() {
   const [plotOutline, setPlotOutline] = useState('');
   const [writingStyle, setWritingStyle] = useState('');
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [hasBoardCharacters, setHasBoardCharacters] = useState(false);
   const [worldSetting, setWorldSetting] = useState('');
 
   // Episode modals
@@ -59,9 +61,10 @@ export default function NovelEditor() {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([fetchNovel(novelId), fetchEpisodes(novelId)])
-      .then(() => {
+    Promise.all([fetchNovel(novelId), fetchEpisodes(novelId), characterService.getBoard(novelId).catch(() => null)])
+      .then(([, , board]) => {
         if (cancelled) return;
+        setHasBoardCharacters(Boolean(board?.characters.length));
         // Seed the editable form from the freshly loaded novel. Doing it in this
         // continuation (rather than in an effect watching activeNovel) keeps the
         // form from being overwritten whenever the store updates for any other
@@ -113,7 +116,7 @@ export default function NovelEditor() {
       await novelService.upsertContext(novelId, {
         plotOutline: plotOutline || undefined,
         writingStyle: writingStyle || undefined,
-        characters,
+        ...(hasBoardCharacters || characters.length === 0 ? {} : { characters }),
         worldBuilding: worldSetting || undefined,
       });
       addToast({ type: 'success', title: 'Story context saved!' });
@@ -167,6 +170,13 @@ export default function NovelEditor() {
         id="back-to-dashboard"
       >
         <ArrowLeft size={14} /> Back to Dashboard
+      </Link>
+
+      <Link
+        to={`/writer/novel/${novelId}/board`}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1.5rem', color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}
+      >
+        <Users size={15} /> Character Board
       </Link>
 
       {/* Novel metadata card */}
@@ -234,6 +244,7 @@ export default function NovelEditor() {
         writingStyle={writingStyle}
         worldSetting={worldSetting}
         characters={characters}
+        manageCharactersUrl={hasBoardCharacters || characters.length === 0 ? `/writer/novel/${novelId}/board` : undefined}
         onPlotOutlineChange={setPlotOutline}
         onWritingStyleChange={setWritingStyle}
         onWorldSettingChange={setWorldSetting}

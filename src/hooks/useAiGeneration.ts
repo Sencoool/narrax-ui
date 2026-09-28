@@ -39,6 +39,7 @@ export function useAiGeneration(
     appendToStreaming,
     setMessageStatus,
     setMessageError,
+    setGenerationId,
   } = useAiStore();
 
   const { addToast } = useUiStore();
@@ -103,6 +104,7 @@ export function useAiGeneration(
             case 'segment_done':
               break;
             case 'done':
+              setGenerationId(assistantMsg.id, event.requestId);
               setMessageStatus(assistantMsg.id, 'done');
               break;
             case 'error':
@@ -133,6 +135,7 @@ export function useAiGeneration(
     appendToStreaming,
     setMessageStatus,
     setMessageError,
+    setGenerationId,
     addToast,
   ]);
 

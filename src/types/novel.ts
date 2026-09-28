@@ -26,6 +26,7 @@ export interface Character {
   name: string;
   description?: string;
   role: 'protagonist' | 'antagonist' | 'supporting' | 'other';
+  imageUrl?: string | null;
 }
 
 export interface PaginatedResponse<T> {

@@ -191,11 +191,12 @@ export default function EpisodeEditor() {
   );
 
   const buildAiContext = useCallback(() => {
-    const pinned = novelContext.buildPinnedContext();
+    const episodeOrder = activeEpisode?.order ?? 0;
+    const pinned = novelContext.buildPinnedContext(episodeOrder);
     const editorText = editor?.getText() ?? '';
-    const castContext = novelContext.buildEpisodeCastContext(cast, editorText);
+    const castContext = novelContext.buildEpisodeCastContext(cast, editorText, episodeOrder);
     return [pinned, castContext].filter(Boolean).join('\n\n');
-  }, [novelContext, cast, editor]);
+  }, [novelContext, cast, editor, activeEpisode?.order]);
 
   // Delete episode
   const handleDelete = async () => {
